@@ -1,0 +1,302 @@
+lib/
+│
+├── main.dart
+├── models/
+│   └── task_model.dart
+├── services/
+│   └── task_service.dart
+├── screens/
+│   └── task_screen.dart
+└── widgets/
+    └── task_card.dart
+
+
+--------------
+
+pubspec.yaml
+
+Add http package.
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  intl: ^0.19.0
+  http: ^1.2.1
+
+Then run:
+
+flutter pub get
+
+
+
+--------------
+
+
+
+lib/main.dart
+
+import 'package:flutter/material.dart';
+import 'screens/task_screen.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Tasks API',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: const TaskScreen(),
+    );
+  }
+}
+
+--------------
+
+
+lib/models/task_model.dart
+
+class TaskModel {
+  final int id;
+  final int userId;
+  final String title;
+  final DateTime dueOn;
+  final String status;
+
+  TaskModel({
+    required this.id,
+    required this.userId,
+    required this.title,
+    required this.dueOn,
+    required this.status,
+  });
+
+  factory TaskModel.fromJson(Map<String, dynamic> json) {
+    return TaskModel(
+      id: json['id'],
+      userId: json['user_id'],
+      title: json['title'],
+      dueOn: DateTime.parse(json['due_on']),
+      status: json['status'],
+    );
+  }
+}
+
+
+
+--------------
+
+
+
+lib/services/task_service.dart
+
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import '../models/task_model.dart';
+
+class TaskService {
+  static const String url =
+      'https://raw.githubusercontent.com/MahmoodYashar98/comments_api/main/comments.json';
+
+  static Future<List<TaskModel>> fetchTasks() async {
+    final response = await http.get(Uri.parse(url));
+
+    if (response.statusCode == 200) {
+      final List data = jsonDecode(response.body);
+
+      return data
+          .map((json) => TaskModel.fromJson(json))
+          .toList();
+    } else {
+      throw Exception('Failed to load tasks');
+    }
+  }
+}
+
+
+
+--------------
+
+lib/screens/task_screen.dart
+
+import 'package:flutter/material.dart';
+
+import '../models/task_model.dart';
+import '../services/task_service.dart';
+import '../widgets/task_card.dart';
+
+class TaskScreen extends StatefulWidget {
+  const TaskScreen({super.key});
+
+  @override
+  State<TaskScreen> createState() => _TaskScreenState();
+}
+
+class _TaskScreenState extends State<TaskScreen> {
+  late Future<List<TaskModel>> futureTasks;
+
+  @override
+  void initState() {
+    super.initState();
+    futureTasks = TaskService.fetchTasks();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Tasks From API'),
+        centerTitle: true,
+      ),
+      body: FutureBuilder<List<TaskModel>>(
+        future: futureTasks,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState ==
+              ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                'Error: ${snapshot.error}',
+              ),
+            );
+          }
+
+          final tasks = snapshot.data ?? [];
+
+          if (tasks.isEmpty) {
+            return const Center(
+              child: Text('No Tasks Found'),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: tasks.length,
+            itemBuilder: (context, index) {
+              return TaskCard(task: tasks[index]);
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+
+--------------
+
+
+lib/widgets/task_card.dart
+
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import '../models/task_model.dart';
+
+class TaskCard extends StatelessWidget {
+  final TaskModel task;
+
+  const TaskCard({
+    super.key,
+    required this.task,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isCompleted =
+        task.status.toLowerCase() == 'completed';
+
+    return Card(
+      elevation: 4,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            Text(
+              task.title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            Row(
+              children: [
+                const Icon(Icons.person_outline),
+                const SizedBox(width: 8),
+                Text(
+                  'User ID: ${task.userId}',
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+
+            Row(
+              children: [
+                const Icon(Icons.calendar_month),
+                const SizedBox(width: 8),
+                Text(
+                  DateFormat('yyyy-MM-dd')
+                      .format(task.dueOn),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 14),
+
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 6,
+              ),
+              decoration: BoxDecoration(
+                color: isCompleted
+                    ? Colors.green.shade100
+                    : Colors.orange.shade100,
+                borderRadius:
+                    BorderRadius.circular(30),
+              ),
+              child: Text(
+                task.status.toUpperCase(),
+                style: TextStyle(
+                  color: isCompleted
+                      ? Colors.green
+                      : Colors.orange,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+
+
